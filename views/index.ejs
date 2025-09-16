@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Simple Log Filter</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <h1>Simple Log Filter for CE</h1>
+    <p>Upload a log file. After parsing you can view ALL / INFO / DEBUG / ERROR logs (multiline preserved).</p>
+
+    <form action="/upload" method="post" enctype="multipart/form-data">
+      <input type="file" name="logfile" accept=".log,.txt" required />
+      <button type="submit">Upload & Parse</button>
+    </form>
+
+    <section style="margin-top:18px;color:#666;font-size:0.95rem">
+      <strong>Note:</strong> This demo stores parsed results in memory. For huge files, use DB or ES.
+    </section>
+  </main>
+</body>
+</html>

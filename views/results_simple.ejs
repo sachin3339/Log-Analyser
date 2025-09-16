@@ -1,0 +1,363 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Logs — <%= jobId %></title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    /* Light theme, clean & compact */
+    :root{
+      --bg:#f6f8fb; --panel:#ffffff; --muted:#6b7280; --accent:#0b63d8; --danger:#dc2626;
+      --mono: Menlo, Monaco, "Courier New", monospace;
+    }
+    html,body{height:100%;margin:0;background:var(--bg); color:#111827; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; font-size:14px;}
+    .container{max-width:1100px;margin:18px auto;padding:18px;}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .back{color:var(--muted); text-decoration:none; font-size:13px}
+    h1{margin:0;font-size:20px}
+    .meta{color:var(--muted); font-size:13px}
+    .log {
+  white-space: pre-wrap;  /* wrap long lines */
+  word-break: break-word; /* allow breaking long strings */
+  font-family: monospace;
+}
+
+
+    /* summary cards */
+    .cards{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+    .card{background:var(--panel);padding:12px;border-radius:10px;box-shadow:0 6px 14px rgba(16,24,40,0.04);min-width:140px;flex:1;}
+    .card .big{font-weight:700;font-size:18px}
+    .card .small{color:var(--muted);font-size:13px;margin-top:4px}
+
+    /* controls */
+    .controls{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+    select,input[type="text"],input[type="number"]{padding:8px;border-radius:8px;border:1px solid #e6eef8;background:white;color:inherit}
+    button{background:var(--accent);color:white;padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid #e6eef8;color:var(--muted);}
+
+    /* layout */
+    .grid{display:grid;grid-template-columns:1fr 380px;gap:16px;margin-top:16px}
+    @media(max-width:980px){ .grid{grid-template-columns:1fr} }
+
+    /* raw log list */
+    .panel{background:var(--panel);padding:12px;border-radius:10px;box-shadow:0 6px 14px rgba(16,24,40,0.04)}
+    pre.log{white-space:pre-wrap;background:#0f1724;color:#e6eef8;padding:12px;border-radius:8px;font-family:var(--mono);font-size:13px;overflow:auto;max-height:360px;margin:0}
+
+    .muted{color:var(--muted)}
+    .pager{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+    .pager a{padding:6px 8px;border-radius:6px;text-decoration:none;background:#eef2ff;color:var(--accent)}
+    .pager span.current{padding:6px 8px;border-radius:6px;background:var(--accent);color:white}
+
+    .status-row{display:flex;gap:12px;align-items:center;margin-top:8px;flex-wrap:wrap}
+    .status-pill{padding:8px 10px;border-radius:999px;background:#f3f4f6;border:1px solid #eef2ff;display:flex;gap:8px;align-items:center}
+    .status-num{font-weight:700}
+    .export-note{font-size:13px;color:var(--muted);margin-top:8px}
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <div>
+        <a href="/" class="back">← Upload another</a>
+        <h1>Log Results</h1>
+        <div class="meta">Job: <strong><%= jobId %></strong> — created: <%= new Date(createdAt).toLocaleString() %></div>
+      </div>
+
+      <div style="text-align:right">
+        <div class="muted">Total parsed lines: <strong id="totalLines"><%= totalLines %></strong></div>
+      </div>
+    </header>
+
+    <!-- summary -->
+    <div class="cards" id="summaryCards">
+      <div class="card">
+        <div class="big" id="totalCount">—</div>
+        <div class="small">Total lines</div>
+      </div>
+      <div class="card">
+        <div class="big" id="errorCount">—</div>
+        <div class="small">ERROR</div>
+      </div>
+      <div class="card">
+        <div class="big" id="warnCount">—</div>
+        <div class="small">WARN</div>
+      </div>
+      <div class="card">
+        <div class="big" id="infoCount">—</div>
+        <div class="small">INFO</div>
+      </div>
+    </div>
+
+    <!-- controls -->
+    <div class="controls">
+      <label class="muted">Level:
+        <select id="levelFilter">
+          <option value="ALL">ALL</option>
+          <option value="ERROR">ERROR</option>
+          <option value="WARN">WARN</option>
+          <option value="INFO">INFO</option>
+          <option value="DEBUG">DEBUG</option>
+          <option value="TRACE">TRACE</option>
+          <option value="OTHER">OTHER</option>
+        </select>
+      </label>
+
+      <label class="muted">Text:
+        <input type="text" id="textFilter" placeholder="optional: search text (matches log content)" />
+      </label>
+
+      <label class="muted">Per page:
+        <input type="number" id="perPage" value="<%= perPage %>" min="10" max="1000" style="width:92px" />
+      </label>
+
+      <button id="applyBtn" class="ghost">Apply Filter</button>
+      <button id="exportBtn">Export filtered file</button>
+      <div class="export-note" id="exportNote">Export grabs all matching lines (may take a moment for large logs).</div>
+    </div>
+
+    <div class="grid">
+      <!-- left: raw logs -->
+      <section>
+        <div class="panel">
+          <div class="muted" style="margin-bottom:8px">Showing <span id="matchCount"><%= totalMatches %></span> matches — Page <span id="pageNum"><%= page %></span> / <span id="totalPages"><%= totalPages %></span></div>
+
+          <div id="logsArea">
+            <% if (pageItems.length === 0) { %>
+              <div class="muted">No matching lines.</div>
+            <% } else { %>
+              <% pageItems.forEach(item => { %>
+                <article style="margin-bottom:12px">
+                  <pre class="log" data-index="<%= item.index %>"><%= item.raw %></pre>
+                </article>
+              <% }) %>
+            <% } %>
+          </div>
+
+          <div class="pager" id="pager">
+            <% function qUrl(p){ const params = new URLSearchParams(); params.set('level', level); params.set('perPage', perPage); params.set('page', p); return '/results/' + jobId + '?' + params.toString(); } %>
+            <% if (page > 1) { %><a href="<%= qUrl(page-1) %>" id="prevBtn">Prev</a><% } %>
+            <% for (let p = Math.max(1, page-2); p <= Math.min(totalPages, page+2); p++) { %>
+              <% if (p === page) { %><span class="current"><%= p %></span>
+              <% } else { %><a href="<%= qUrl(p) %>" class="pageLink"><%= p %></a><% } %>
+            <% } %>
+            <% if (page < totalPages) { %><a href="<%= qUrl(page+1) %>" id="nextBtn">Next</a><% } %>
+          </div>
+        </div>
+      </section>
+
+      <!-- right: simple legend & quick actions -->
+      <aside>
+        <div class="panel">
+          <h3 style="margin:0 0 8px 0">Quick overview</h3>
+          <div class="status-row">
+            <div class="status-pill"><div class="status-num" id="pillError">—</div><div class="muted">Errors</div></div>
+            <div class="status-pill"><div class="status-num" id="pillWarn">—</div><div class="muted">Warn</div></div>
+            <div class="status-pill"><div class="status-num" id="pillInfo">—</div><div class="muted">Info</div></div>
+          </div>
+
+          <hr style="margin:12px 0;border:none;border-top:1px solid #f1f5f9" />
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button id="downloadVisible" class="ghost">Download current page</button>
+            <button id="downloadFiltered" class="ghost">Download filtered (all matches)</button>
+            <div class="muted" style="font-size:13px">Tip: use Level + Text filter then click "Download filtered (all matches)".</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    // Utilities
+    const jobId = "<%= jobId %>";
+    const apiSummary = `/api/job/${jobId}/summary`;
+    const apiLinesBase = `/api/job/${jobId}/lines`;
+    const escapeHtml = s => (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    // Elements
+    const el = id => document.getElementById(id);
+    const levelFilter = el('levelFilter');
+    const textFilter = el('textFilter');
+    const perPageInput = el('perPage');
+    const applyBtn = el('applyBtn');
+    const exportBtn = el('exportBtn');
+    const logsArea = el('logsArea');
+    const matchCountEl = el('matchCount');
+    const pageNumEl = el('pageNum');
+    const totalPagesEl = el('totalPages');
+    const totalLinesEl = el('totalLines');
+
+    // fill summary cards
+    async function loadSummary() {
+      try {
+        const r = await fetch(apiSummary);
+        if (!r.ok) throw new Error('summary failed ' + r.status);
+        const { summary } = await r.json();
+        const counts = summary.counts || {};
+        const total = counts.TOTAL || <%= totalLines %> || 0;
+        el('totalCount').textContent = total;
+        el('errorCount').textContent = `${counts.ERROR || 0} (${(summary.pct?.ERROR||0)}%)`;
+        el('warnCount').textContent  = `${counts.WARN || 0} (${(summary.pct?.WARN||0)}%)`;
+        el('infoCount').textContent  = `${counts.INFO || 0} (${(summary.pct?.INFO||0)}%)`;
+        el('pillError').textContent = counts.ERROR || 0;
+        el('pillWarn').textContent = counts.WARN || 0;
+        el('pillInfo').textContent = counts.INFO || 0;
+        totalLinesEl.textContent = total;
+      } catch (err) {
+        console.error('loadSummary', err);
+      }
+    }
+
+// load one page of lines (server supports ?level=&page=&perPage=&text=)
+async function loadLines({ level='ALL', page=1, perPage=200, text='' } = {}) {
+  const params = new URLSearchParams();
+  if (level) params.set('level', level);
+  params.set('page', page);
+  params.set('perPage', perPage);
+  if (text && String(text).trim().length > 0) params.set('text', String(text).trim());
+  const url = `${apiLinesBase}?${params.toString()}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('lines fetch failed ' + r.status);
+  return r.json();
+}
+
+    // render page items into logsArea
+    function renderLines(items) {
+      logsArea.innerHTML = '';
+      if (!items || items.length === 0) {
+        logsArea.innerHTML = '<div class="muted">No matching lines.</div>';
+        return;
+      }
+      items.forEach(it => {
+        const wrapper = document.createElement('article');
+        wrapper.style.marginBottom = '12px';
+        const pre = document.createElement('pre');
+        pre.className = 'log';
+        pre.dataset.index = it.index;
+        pre.textContent = it.raw;
+        wrapper.appendChild(pre);
+        logsArea.appendChild(wrapper);
+      });
+    }
+
+// apply filters (reload page content)
+async function applyFilters(page=1) {
+  const level = levelFilter.value || 'ALL';
+  const perPage = parseInt(perPageInput.value || '200', 10);
+  const text = (textFilter.value || '').trim();
+
+  // update URL so back/links reflect current filter (optional but helpful)
+  const params = new URLSearchParams();
+  params.set('level', level);
+  params.set('perPage', perPage);
+  if (text) params.set('text', text);
+  history.replaceState(null, '', `/results/${jobId}?${params.toString()}`);
+
+  try {
+    const data = await loadLines({ level, page, perPage, text });
+    renderLines(data.items || []);
+    matchCountEl.textContent = data.total || 0;
+    pageNumEl.textContent = data.page || page;
+    totalPagesEl.textContent = data.totalPages || 1;
+  } catch (err) {
+    console.error('applyFilters', err);
+    logsArea.innerHTML = `<div class="muted">Error loading logs: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+
+    // Download helpers
+    function downloadBlob(filename, blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Export current page as text file (fast)
+    document.getElementById('downloadVisible').addEventListener('click', () => {
+      const pres = document.querySelectorAll('pre.log');
+      if (!pres.length) return alert('No logs on current page to download.');
+      const text = Array.from(pres).map(p => p.textContent).join('\n\n');
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      downloadBlob(`job-${jobId}-page-<%= page %>.log`, blob);
+    });
+
+    // Export filtered matches across entire job (pages through API)
+async function exportFilteredAll() {
+  const level = levelFilter.value || 'ALL';
+  const searchText = (textFilter.value || '').trim();
+  const perPage = 1000; // max to reduce requests
+  // first, fetch first page to get totalPages (pass text)
+  let page = 1;
+  const first = await loadLines({ level, page, perPage, text: searchText });
+  const totalPages = first.totalPages || 1;
+  const totalMatches = first.total || 0;
+  if (!confirm(`Export will fetch ${totalMatches} matching lines across ${totalPages} pages. Continue?`)) return;
+  const out = [];
+  // process first page (server already applied text filter)
+  (first.items || []).forEach(it => out.push(it.raw));
+  // fetch remaining pages sequentially (pass text each time)
+  for (let p = 2; p <= totalPages; p++) {
+    try {
+      const pageData = await loadLines({ level, page: p, perPage, text: searchText });
+      (pageData.items || []).forEach(it => out.push(it.raw));
+      el('exportNote').textContent = `Export progress: page ${p} / ${totalPages} — collected ${out.length} lines...`;
+    } catch (err) {
+      console.error('export page failed', err);
+      if (!confirm(`Failed fetching page ${p}: ${err.message}. Continue remaining pages?`)) break;
+    }
+  }
+  el('exportNote').textContent = 'Preparing download...';
+  const blob = new Blob([out.join('\n\n')], { type: 'text/plain;charset=utf-8' });
+  downloadBlob(`job-${jobId}-filtered.log`, blob);
+  el('exportNote').textContent = 'Export finished';
+}
+
+    // quick button wired to exportFilteredAll
+    document.getElementById('downloadFiltered').addEventListener('click', exportFilteredAll);
+    exportBtn.addEventListener('click', exportFilteredAll);
+
+    // initial UI hooks
+    applyBtn.addEventListener('click', () => applyFilters(1));
+    // page links (server-rendered) - intercept to use ajax
+// page links (server-rendered) - intercept to use ajax and preserve text filter
+document.querySelectorAll('.pageLink').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const href = new URL(a.href, location.origin);
+    const page = href.searchParams.get('page') || 1;
+    levelFilter.value = href.searchParams.get('level') || levelFilter.value;
+    perPageInput.value = href.searchParams.get('perPage') || perPageInput.value;
+    // preserve current text filter from UI (or use one in the link if present)
+    const linkText = href.searchParams.get('text');
+    if (linkText) textFilter.value = linkText;
+    applyFilters(parseInt(page,10));
+  });
+});
+
+    const prev = document.getElementById('prevBtn'), next = document.getElementById('nextBtn');
+    if (prev) prev.addEventListener('click', e => { e.preventDefault(); const href = new URL(prev.href, location.origin); const page = href.searchParams.get('page')||1; applyFilters(parseInt(page,10)); });
+    if (next) next.addEventListener('click', e => { e.preventDefault(); const href = new URL(next.href, location.origin); const page = href.searchParams.get('page')||1; applyFilters(parseInt(page,10)); });
+
+    // on load
+    (async function init(){
+      await loadSummary();
+      // set level default based on URL param if present
+// in init()
+const urlParams = new URLSearchParams(window.location.search);
+const urlLevel = urlParams.get('level');
+const urlText = urlParams.get('text');
+if (urlLevel) levelFilter.value = urlLevel.toUpperCase();
+if (urlText) textFilter.value = urlText;
+await applyFilters(<%= page %> || 1);
+
+    })();
+  </script>
+</body>
+</html>
