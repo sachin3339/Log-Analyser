@@ -31,10 +31,10 @@
     .card .small{color:var(--muted);font-size:13px;margin-top:4px}
 
     /* controls */
-    .controls{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+    .controls{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap} 
     select,input[type="text"],input[type="number"]{padding:8px;border-radius:8px;border:1px solid #e6eef8;background:white;color:inherit}
     button{background:var(--accent);color:white;padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
-    button.ghost{background:transparent;border:1px solid #e6eef8;color:var(--muted);}
+    button.ghost{background:var(--accent);color:white;padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
 
     /* layout */
     .grid{display:grid;grid-template-columns:1fr 380px;gap:16px;margin-top:16px}
@@ -53,6 +53,30 @@
     .status-pill{padding:8px 10px;border-radius:999px;background:#f3f4f6;border:1px solid #eef2ff;display:flex;gap:8px;align-items:center}
     .status-num{font-weight:700}
     .export-note{font-size:13px;color:var(--muted);margin-top:8px}
+    .controls select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding:8px 12px;
+  padding-left:40px;
+  border-radius:8px;
+  border:1px solid #e6e9ef;
+  background:#fff;
+  font-weight:700;
+  min-width:160px;
+  box-shadow: inset 6px 0 0 0 transparent;
+  transition: all .16s ease;
+}
+
+/* classes added by JS */
+select.lvl-error   { box-shadow: inset 6px 0 0 0 #ef4444; background:#fff5f5; border-color:#fca5a5; color:#7f1d1d; }
+select.lvl-warn    { box-shadow: inset 6px 0 0 0 #f59e0b; background:#fffbeb; border-color:#fde68a; color:#92400e; }
+select.lvl-info    { box-shadow: inset 6px 0 0 0 #10b981; background:#ecfdf5; border-color:#bbf7d0; color:#065f46; }
+select.lvl-debug   { box-shadow: inset 6px 0 0 0 #60a5fa; background:#f0f9ff; border-color:#bfdbfe; color:#1e3a8a; }
+select.lvl-trace   { box-shadow: inset 6px 0 0 0 #94a3b8; background:#f8fafc; border-color:#e2e8f0; color:#334155; }
+select.lvl-other   { box-shadow: inset 6px 0 0 0 #9ca3af; background:#f8fafc; border-color:#e6eef6; color:#374151; }
+select.lvl-all     { box-shadow: inset 6px 0 0 0 #6366f1; background:#f5f7ff; border-color:#c7d2fe; color:#312e81; }
+
+
   </style>
 </head>
 <body>
@@ -103,7 +127,7 @@
         </select>
       </label>
 
-      <label class="muted">Text:
+      <label class="muted">Text Search:
         <input type="text" id="textFilter" placeholder="optional: search text (matches log content)" />
       </label>
 
@@ -358,6 +382,20 @@ if (urlText) textFilter.value = urlText;
 await applyFilters(<%= page %> || 1);
 
     })();
+      (function(){
+    const sel = document.getElementById('levelFilter');
+    if (!sel) return;
+    function update() {
+      // remove existing lvl- classes
+      sel.classList.remove('lvl-error','lvl-warn','lvl-info','lvl-debug','lvl-trace','lvl-other','lvl-all');
+      const v = (sel.value || 'ALL').toUpperCase();
+      const cls = 'lvl-' + v.toLowerCase();
+      sel.classList.add(cls);
+    }
+    sel.addEventListener('change', update);
+    // initial
+    update();
+  })();
   </script>
 </body>
 </html>
